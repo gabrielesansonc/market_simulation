@@ -23,6 +23,61 @@ When a match happens, the simulation tracks:
 - implied probabilities (midpoint style from book quotes)
 - exchange profit (captured spread in this model)
 
+## Market intuition (assumptions + math)
+This section is the "how and why" behind the simulation for learning purposes.
+
+### Core assumptions
+- Two mutually exclusive outcomes:
+  - `A` happens
+  - `B` happens (`B = not A`)
+- Each participant places one order of fixed size `1`.
+- Orders are either:
+  - `bid` (wants to buy)
+  - `ask` (wants to sell)
+- Matching only occurs when prices cross:
+  - `bid >= ask`
+- Every order must stay on the floor for at least a short minimum time before it can match (in the web app).
+- Exchange profit is modeled as captured spread per matched trade:
+  - `profit += (bid_price - ask_price) * qty`
+
+### Belief model
+- There is a base population probability for `A`: `y`.
+- Individual beliefs are sampled around `y` with disagreement level `bettor_std`.
+- To keep probabilities valid in `(0, 1)` without hard clipping normal draws, the simulator uses a logit-normal style sampling approach:
+  - sample in logit space
+  - map back with sigmoid
+
+### Order prices
+- For each arriving participant:
+  - choose outcome (`A` or `B`)
+  - choose side (`bid` or `ask`)
+  - derive fair value from sampled belief
+- In this current web configuration, spread parameters are fixed to `0`, so bids/asks are centered directly on beliefs.
+
+### Implied probability from the book
+Using last unmatched best quotes:
+
+- `midA = (bestBidA + bestAskA) / 2`
+- `midB = (bestBidB + bestAskB) / 2`
+
+Normalized version:
+
+- `P(A) = midA / (midA + midB)`
+- `P(B) = midB / (midA + midB)`
+
+Current visual app display is unnormalized:
+
+- `P(A) = midA`
+- `P(B) = midB`
+
+This is intentional so you can see raw quote pressure independently on each side.
+
+### Interpretation for students
+- If `bestBidA` and `bestAskA` move up, market willingness to pay for `A` is rising.
+- If `bestBidB` and `bestAskB` move up, market willingness to pay for `B` is rising.
+- Wider bid/ask gaps mean more uncertainty or less immediate agreement.
+- Faster order arrival (higher speed setting) produces more rapid quote updates and more market motion.
+
 ## Project structure
 - `market_simulation.py`
   - Python proof-of-concept implementation.

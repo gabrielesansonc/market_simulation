@@ -349,6 +349,53 @@
       padding: 10px;
       box-shadow: 0 8px 24px rgba(25, 35, 42, 0.06);
     }
+    .plot-wrap {
+      margin-top: 12px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px;
+      box-shadow: 0 8px 24px rgba(25, 35, 42, 0.06);
+    }
+    .plot-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .plot-note {
+      font-size: 11px;
+      color: #6c7780;
+      margin-top: 3px;
+      line-height: 1.35;
+    }
+    .plot-legend {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .plot-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 5px;
+    }
+    .plot-dot-a { background: #d94841; }
+    .plot-dot-b { background: #1477b8; }
+    .plot-canvas-wrap {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+    #probChart {
+      display: block;
+      width: 100%;
+      height: 240px;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -450,6 +497,22 @@
       <div id="marketField" class="orders"></div>
     </div>
 
+    <div class="plot-wrap">
+      <div class="plot-head">
+        <div>
+          <strong>Implied Probability Over Time</strong>
+          <div class="plot-note">Live midpoint-based implied probabilities.</div>
+        </div>
+        <div class="plot-legend">
+          <span><span class="plot-dot plot-dot-a"></span>A</span>
+          <span><span class="plot-dot plot-dot-b"></span>B</span>
+        </div>
+      </div>
+      <div class="plot-canvas-wrap">
+        <canvas id="probChart"></canvas>
+      </div>
+    </div>
+
     <div class="table-wrap">
       <strong>Match Log</strong>
       <div class="scroller">
@@ -541,6 +604,7 @@
       stopBtn: document.getElementById("stopBtn"),
       resetBtn: document.getElementById("resetBtn"),
       marketField: document.getElementById("marketField"),
+      probChart: document.getElementById("probChart"),
       logBody: document.getElementById("logBody"),
       ordersArrived: document.getElementById("ordersArrived"),
       matchesCount: document.getElementById("matchesCount"),
@@ -557,6 +621,10 @@
       targetOffers: 0,
       minResidenceMs: 1500,
       lastMatchAttemptMs: 0,
+      startTimeMs: 0,
+      probSeriesA: [],
+      probSeriesB: [],
+      lastPlotMs: 0,
       matchCount: 0,
       cumulativeProfit: 0,
       entityByOrderId: new Map(),
@@ -568,6 +636,138 @@
         B: { bid: [], ask: [] },
       },
     };
+
+    function initProbChart() {
+      const canvas = el.probChart;
+      if (!canvas) return;
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.clientWidth || 900;
+      const h = canvas.clientHeight || 240;
+      canvas.width = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      const ctx = canvas.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawProbChart();
+    }
+
+    function drawProbChart() {
+      const canvas = el.probChart;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      const w = canvas.clientWidth || 900;
+      const h = canvas.clientHeight || 240;
+      const padL = 40;
+      const padR = 12;
+      const padT = 12;
+      const padB = 26;
+      const plotW = Math.max(10, w - padL - padR);
+      const plotH = Math.max(10, h - padT - padB);
+      const activeW = plotW * (2 / 3); // keep newest point around 2/3 across the full chart width
+
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
+
+      ctx.strokeStyle = "#e2ddd4";
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i += 1) {
+        const y = padT + (plotH * i) / 4;
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(w - padR, y);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = "#bcb6ac";
+      ctx.beginPath();
+      ctx.moveTo(padL, padT);
+      ctx.lineTo(padL, h - padB);
+      ctx.lineTo(w - padR, h - padB);
+      ctx.stroke();
+
+      ctx.fillStyle = "#7b868d";
+      ctx.font = "11px Avenir Next, Segoe UI, sans-serif";
+      ctx.fillText("1.0", 10, padT + 4);
+      ctx.fillText("0.5", 10, padT + plotH / 2 + 4);
+      ctx.fillText("0.0", 10, h - padB + 4);
+
+      const a = state.probSeriesA;
+      const b = state.probSeriesB;
+      if (a.length < 2 || b.length < 2) {
+        ctx.fillStyle = "#97a1a8";
+        ctx.fillText("Waiting for probability updates...", padL + 8, padT + 16);
+        return;
+      }
+
+      const tMax = Math.max(1, a[a.length - 1].t);
+      const toX = (t) => padL + (t / tMax) * activeW;
+      const toY = (p) => padT + (1 - p) * plotH;
+
+      function drawSeries(series, color) {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        let started = false;
+        let last = null;
+        for (const pt of series) {
+          if (!Number.isFinite(pt.p)) continue;
+          const x = toX(pt.t);
+          const y = toY(pt.p);
+          if (!started) {
+            ctx.moveTo(x, y);
+            started = true;
+          } else {
+            ctx.lineTo(x, y);
+          }
+          last = { x, y, p: pt.p };
+        }
+        ctx.stroke();
+        return last;
+      }
+
+      const lastA = drawSeries(a, "#d94841");
+      const lastB = drawSeries(b, "#1477b8");
+
+      function drawEndLabel(last, name, color) {
+        if (!last) return;
+        const pct = `${(last.p * 100).toFixed(1)}%`;
+        const text = `${name} ${pct}`;
+        const tx = Math.min(w - padR - 4, last.x + 8);
+        const ty = Math.max(padT + 10, Math.min(h - padB - 4, last.y - 6));
+
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(last.x, last.y, 3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.font = "12px Avenir Next, Segoe UI, sans-serif";
+        ctx.fillText(text, tx, ty);
+      }
+
+      drawEndLabel(lastA, "A", "#d94841");
+      drawEndLabel(lastB, "B", "#1477b8");
+    }
+
+    function pushProbabilityPoint(pA, pB) {
+      const now = performance.now();
+      const t = Math.max(0, (now - state.startTimeMs) / 1000);
+      const tooSoon = now - state.lastPlotMs < 120;
+      const lastA = state.probSeriesA.length ? state.probSeriesA[state.probSeriesA.length - 1].p : NaN;
+      const lastB = state.probSeriesB.length ? state.probSeriesB[state.probSeriesB.length - 1].p : NaN;
+      const unchanged =
+        (Number.isNaN(lastA) && Number.isNaN(pA) || Math.abs(lastA - pA) < 1e-9) &&
+        (Number.isNaN(lastB) && Number.isNaN(pB) || Math.abs(lastB - pB) < 1e-9);
+      if (tooSoon && unchanged) return;
+
+      state.probSeriesA.push({ t, p: pA });
+      state.probSeriesB.push({ t, p: pB });
+      if (state.probSeriesA.length > 1200) {
+        state.probSeriesA.shift();
+        state.probSeriesB.shift();
+      }
+      state.lastPlotMs = now;
+      drawProbChart();
+    }
 
     function laneKey(outcome, side) {
       return `${outcome}_${side}`;
@@ -641,6 +841,91 @@
       el.bettorStdValue.textContent = parseFloat(el.bettorStd.value).toFixed(2);
     }
 
+    function createWalkingAvatar() {
+      const avatar = new PIXI.Container();
+
+      const shadow = new PIXI.Graphics();
+      shadow.ellipse(0, 14, 8, 3).fill({ color: 0x000000, alpha: 0.15 });
+      avatar.addChild(shadow);
+
+      const torso = new PIXI.Graphics();
+      torso.roundRect(-4.5, -2, 9, 12, 4).fill(0xf4f6f8);
+      avatar.addChild(torso);
+
+      const head = new PIXI.Graphics();
+      head.circle(0, -6.8, 5).fill(0xf4f6f8);
+      avatar.addChild(head);
+
+      const eyeL = new PIXI.Graphics();
+      eyeL.circle(-1.7, -7.5, 0.7).fill(0x1f2a30);
+      const eyeR = new PIXI.Graphics();
+      eyeR.circle(1.7, -7.5, 0.7).fill(0x1f2a30);
+      avatar.addChild(eyeL, eyeR);
+
+      const mouth = new PIXI.Graphics();
+      mouth.moveTo(-1.8, -5.3).lineTo(1.8, -5.3).stroke({ width: 1.2, color: 0x1f2a30 });
+      avatar.addChild(mouth);
+
+      const armL = new PIXI.Graphics();
+      armL.roundRect(-8.4, 0, 3.2, 8.5, 1.6).fill(0xe6eaee);
+      armL.pivot.set(-6.8, 1.2);
+      armL.position.set(-6.8, 1.2);
+      avatar.addChild(armL);
+
+      const armR = new PIXI.Graphics();
+      armR.roundRect(5.2, 0, 3.2, 8.5, 1.6).fill(0xe6eaee);
+      armR.pivot.set(6.8, 1.2);
+      armR.position.set(6.8, 1.2);
+      avatar.addChild(armR);
+
+      const legL = new PIXI.Graphics();
+      legL.roundRect(-3.6, 10, 3.2, 9.5, 1.6).fill(0xd8dde3);
+      legL.pivot.set(-2.0, 11.2);
+      legL.position.set(-2.0, 11.2);
+      avatar.addChild(legL);
+
+      const legR = new PIXI.Graphics();
+      legR.roundRect(0.4, 10, 3.2, 9.5, 1.6).fill(0xd8dde3);
+      legR.pivot.set(2.0, 11.2);
+      legR.position.set(2.0, 11.2);
+      avatar.addChild(legR);
+
+      avatar._parts = { shadow, torso, head, mouth, armL, armR, legL, legR };
+      avatar._phase = Math.random() * Math.PI * 2;
+      avatar._walkAmp = 0;
+      return avatar;
+    }
+
+    function animateWalkingAvatar(entity, movedDistance) {
+      if (!entity || !entity._avatar || !entity._avatar._parts) return;
+      const a = entity._avatar;
+      const p = a._parts;
+
+      // Blend toward walk/idle depending on movement.
+      const targetAmp = movedDistance > 0.12 ? Math.min(1, movedDistance * 4.5) : 0;
+      a._walkAmp += (targetAmp - a._walkAmp) * 0.18;
+      a._phase += 0.16 + 0.35 * a._walkAmp;
+
+      const swing = Math.sin(a._phase) * 0.55 * a._walkAmp;
+      const counter = Math.sin(a._phase + Math.PI) * 0.55 * a._walkAmp;
+      const bob = Math.sin(a._phase * 2) * 0.8 * a._walkAmp;
+
+      p.legL.rotation = swing;
+      p.legR.rotation = counter;
+      p.armL.rotation = counter * 0.8;
+      p.armR.rotation = swing * 0.8;
+      p.head.y = -6.8 + bob * 0.5;
+      p.torso.y = -2 + bob * 0.4;
+      p.shadow.scale.x = 1 + 0.06 * a._walkAmp;
+      p.shadow.scale.y = 1 - 0.05 * a._walkAmp;
+      p.mouth.clear();
+      if (a._walkAmp > 0.2) {
+        p.mouth.moveTo(-1.8, -5.5).lineTo(1.8, -5.1).stroke({ width: 1.2, color: 0x1f2a30 });
+      } else {
+        p.mouth.moveTo(-1.8, -5.3).lineTo(1.8, -5.3).stroke({ width: 1.2, color: 0x1f2a30 });
+      }
+    }
+
     function createOrderEntity(order) {
       const root = new PIXI.Container();
       root.label = `order-${order.order_id}`;
@@ -659,17 +944,9 @@
       }
       root.addChild(bubble);
 
-      const person = new PIXI.Text({
-        text: "🧍",
-        style: {
-          fontFamily: "Segoe UI Emoji, Apple Color Emoji, sans-serif",
-          fontSize: 18,
-          fill: 0xffffff,
-        },
-      });
-      person.anchor.set(0.5);
-      person.y = -1;
-      root.addChild(person);
+      const avatar = createWalkingAvatar();
+      root.addChild(avatar);
+      root._avatar = avatar;
 
       const sideTag = new PIXI.Text({
         text: String(order.order_id),
@@ -719,8 +996,18 @@
 
     function updateWanderMovement() {
       const speedVal = parseFloat(el.speed.value);
-      const motionFactor = speedVal / 2.0; // inverted: higher slider => faster movement
-      const maxStep = 0.35 + 1.25 * motionFactor;
+      const intervalSec = Math.max(0.1, 2.1 - speedVal); // same mapping as arrivals
+      const arrivalRate = 1 / intervalSec; // offers per second
+      const minRate = 1 / 2.0; // slider at slowest effective interval (2.0s)
+      const maxRate = 1 / 0.1; // slider at fastest effective interval (0.1s)
+      const rateNorm = Math.max(0, Math.min(1, (arrivalRate - minRate) / (maxRate - minRate)));
+
+      // Lowest walk speed is ~half of previous minimum.
+      const minStep = 0.20625;
+      const maxStep = 1.6;
+      const stepCap = minStep + (maxStep - minStep) * rateNorm;
+      const driftBoost = 0.03 + 0.09 * rateNorm;
+      const nowMs = performance.now();
 
       for (const lane of state.laneMap.values()) {
         const z = zoneRect(lane.key);
@@ -733,17 +1020,20 @@
           const dx = entity._targetX - entity.x;
           const dy = entity._targetY - entity.y;
           const dist = Math.hypot(dx, dy);
+          const prevX = entity.x;
+          const prevY = entity.y;
           if (dist > 0.5) {
-            const step = Math.min(maxStep, dist * 0.08 + 0.06 * motionFactor);
+            const step = Math.min(stepCap, dist * 0.08 + driftBoost);
             entity.x += (dx / dist) * step;
             entity.y += (dy / dist) * step;
           }
+          const moved = Math.hypot(entity.x - prevX, entity.y - prevY);
+          animateWalkingAvatar(entity, moved);
           entity.x = Math.max(z.x0, Math.min(z.x1, entity.x));
           entity.y = Math.max(z.y0, Math.min(z.y1, entity.y));
         }
       }
 
-      const nowMs = performance.now();
       if (state.running && nowMs - state.lastMatchAttemptMs > 80) {
         state.lastMatchAttemptMs = nowMs;
         tryMatchAll(nowMs);
@@ -847,23 +1137,11 @@
       const midA = Number.isNaN(qA.bestBid) || Number.isNaN(qA.bestAsk) ? NaN : (qA.bestBid + qA.bestAsk) / 2;
       const midB = Number.isNaN(qB.bestBid) || Number.isNaN(qB.bestAsk) ? NaN : (qB.bestBid + qB.bestAsk) / 2;
 
-      let pA = NaN;
-      let pB = NaN;
-      if (Number.isNaN(midA) && Number.isNaN(midB)) {
-        pA = NaN; pB = NaN;
-      } else if (Number.isNaN(midA)) {
-        pB = midB; pA = 1 - pB;
-      } else if (Number.isNaN(midB)) {
-        pA = midA; pB = 1 - pA;
-      } else {
-        const denom = midA + midB;
-        if (denom > 0) {
-          pA = midA / denom;
-          pB = midB / denom;
-        }
-      }
+      const pA = Number.isNaN(midA) ? NaN : midA;
+      const pB = Number.isNaN(midB) ? NaN : midB;
       el.pA.textContent = Number.isNaN(pA) ? "-" : pA.toFixed(3);
       el.pB.textContent = Number.isNaN(pB) ? "-" : pB.toFixed(3);
+      pushProbabilityPoint(pA, pB);
     }
 
     function appendMatchLog(trade) {
@@ -1064,6 +1342,10 @@
       state.idx = 0;
       state.targetOffers = 0;
       state.lastMatchAttemptMs = 0;
+      state.startTimeMs = performance.now();
+      state.probSeriesA = [];
+      state.probSeriesB = [];
+      state.lastPlotMs = 0;
       state.matchCount = 0;
       state.cumulativeProfit = 0;
       state.entityByOrderId.clear();
@@ -1076,6 +1358,7 @@
       }
       if (state.overlayApp) state.overlayApp.stage.removeChildren();
       el.logBody.innerHTML = "";
+      drawProbChart();
       updateStats();
     }
 
@@ -1093,7 +1376,7 @@
 
     function start() {
       resetState();
-      const seed = 7;
+      const seed = Math.floor(Math.random() * 0xffffffff);
       state.rand = mulberry32(seed);
       state.targetOffers = Math.max(1, Math.round(parseFloat(el.offersMean.value)));
       state.running = true;
@@ -1108,9 +1391,11 @@
 
     async function bootstrap() {
       await initPixi();
+      initProbChart();
       el.speed.addEventListener("input", updateSpeedReadout);
       el.baseY.addEventListener("input", updateParamReadouts);
       el.bettorStd.addEventListener("input", updateParamReadouts);
+      window.addEventListener("resize", initProbChart);
       el.startBtn.addEventListener("click", start);
       el.stopBtn.addEventListener("click", stop);
       el.resetBtn.addEventListener("click", resetState);
