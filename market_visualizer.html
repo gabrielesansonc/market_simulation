@@ -1,0 +1,1125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Two-Outcome Market Visualizer</title>
+  <style>
+    :root {
+      --bg: #f7f5ef;
+      --panel: #fffdfa;
+      --ink: #1f2a30;
+      --muted: #5d6a72;
+      --line: #dad6cc;
+      --bid: #1477b8;
+      --ask: #d94841;
+      --a: #2f855a;
+      --b: #b7791f;
+      --good: #2f855a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 500px at 10% -20%, #ffffff 10%, transparent 60%),
+        radial-gradient(900px 400px at 100% 0%, #f0ede6 10%, transparent 60%),
+        var(--bg);
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 20px auto;
+      padding: 0 16px 24px;
+    }
+    .top {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 8px 24px rgba(25, 35, 42, 0.06);
+    }
+    .hero {
+      padding: 16px 18px;
+      background:
+        linear-gradient(135deg, rgba(217, 72, 65, 0.09), rgba(20, 119, 184, 0.09)),
+        var(--panel);
+    }
+    .hero h1 {
+      margin: 0;
+      font-size: 28px;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+    .hero p {
+      margin: 10px 0 0;
+      color: #2a3941;
+      font-size: 14px;
+      line-height: 1.45;
+      max-width: 980px;
+    }
+    .hero-tags {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .hero-tag {
+      font-size: 11px;
+      color: #304048;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(48, 64, 72, 0.22);
+      background: rgba(255, 255, 255, 0.75);
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(160px, 1fr));
+      gap: 12px;
+      align-items: end;
+    }
+    .field {
+      display: grid;
+      gap: 4px;
+      font-size: 12px;
+      color: var(--muted);
+      align-content: start;
+      min-height: 86px;
+    }
+    .field input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--ink);
+      font-weight: 600;
+    }
+    .field .value {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 700;
+      justify-self: end;
+    }
+    .field input[type="range"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 100%;
+      height: 8px;
+      border: 0;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #cfd7dc, #cfd7dc);
+      padding: 0;
+      margin: 8px 0 2px;
+    }
+    .field input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #12303f;
+      border: 2px solid #ffffff;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+      cursor: pointer;
+      margin-top: -5px;
+    }
+    .field input[type="range"]::-moz-range-track {
+      height: 8px;
+      border-radius: 999px;
+      background: #cfd7dc;
+    }
+    .field input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #12303f;
+      border: 2px solid #ffffff;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+      cursor: pointer;
+    }
+    .actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+    }
+    button {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--ink);
+      padding: 9px 13px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button.primary {
+      background: #12303f;
+      color: #fff;
+      border-color: #12303f;
+    }
+    .speed-readout { font-size: 12px; color: var(--muted); }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
+      gap: 10px;
+    }
+    .stat {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 11px;
+      background: #fff;
+    }
+    .stat .k { font-size: 11px; color: var(--muted); }
+    .stat .v { font-size: 18px; font-weight: 700; margin-top: 4px; }
+
+    .market-board {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+      background: #fff;
+      min-height: 460px;
+      position: relative;
+      overflow: hidden;
+      margin-top: 12px;
+      box-shadow: 0 8px 24px rgba(25, 35, 42, 0.06);
+    }
+    .market-board h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+    }
+    .market-subtitle {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .market-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .dot-a { background: #d94841; }
+    .dot-b { background: #1477b8; }
+    .text-ask { color: #d94841; font-weight: 700; }
+    .text-bid { color: #2f855a; font-weight: 700; }
+    .orders {
+      position: absolute;
+      inset: 42px 10px 10px 10px;
+      overflow: hidden;
+      border-radius: 10px;
+      background:
+        linear-gradient(
+          90deg,
+          rgba(217, 72, 65, 0.08) 0%,
+          rgba(217, 72, 65, 0.08) 49.5%,
+          rgba(20, 119, 184, 0.08) 50.5%,
+          rgba(20, 119, 184, 0.08) 100%
+        );
+    }
+    .orders canvas {
+      width: 100% !important;
+      height: 100% !important;
+      display: block;
+    }
+    .person {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 19px;
+      font-weight: 700;
+      position: relative;
+      transition: transform 350ms ease, opacity 350ms ease;
+    }
+    .person.outcome-a { background: var(--ask); }
+    .person.outcome-b { background: var(--bid); }
+    .person.bid {
+      outline: 3px solid rgba(255, 255, 255, 0.9);
+      outline-offset: -2px;
+    }
+    .person.ask {
+      outline: 3px dashed rgba(255, 255, 255, 0.95);
+      outline-offset: -2px;
+    }
+    .person::after {
+      content: attr(data-price);
+      position: absolute;
+      top: 44px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: var(--ink);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+    .person::before {
+      content: attr(data-side);
+      position: absolute;
+      top: -7px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      font-weight: 800;
+      background: rgba(0, 0, 0, 0.65);
+      color: #fff;
+      border-radius: 10px;
+      padding: 1px 5px;
+      letter-spacing: 0.2px;
+    }
+    .person.matching {
+      transform: scale(1.2);
+      opacity: 0.35;
+    }
+    .person.matched-bid {
+      box-shadow: 0 0 0 4px rgba(20, 119, 184, 0.25);
+    }
+    .person.matched-ask {
+      box-shadow: 0 0 0 4px rgba(217, 72, 65, 0.25);
+    }
+    .person.remove {
+      transform: scale(0.2);
+      opacity: 0;
+    }
+    .match-link {
+      position: fixed;
+      height: 3px;
+      border-radius: 3px;
+      background: linear-gradient(90deg, rgba(20, 119, 184, 0.95), rgba(217, 72, 65, 0.95));
+      transform-origin: 0 50%;
+      pointer-events: none;
+      z-index: 999;
+      animation: linkFade 700ms ease forwards;
+    }
+    .spread-pop {
+      position: fixed;
+      transform: translate(-50%, -50%);
+      background: rgba(47, 133, 90, 0.95);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 4px 8px;
+      pointer-events: none;
+      z-index: 1000;
+      animation: spreadPop 900ms ease forwards;
+    }
+    @keyframes linkFade {
+      0% { opacity: 0; }
+      15% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+    @keyframes spreadPop {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.65); }
+      20% { opacity: 1; transform: translate(-50%, -62%) scale(1.05); }
+      100% { opacity: 0; transform: translate(-50%, -110%) scale(0.95); }
+    }
+
+    .table-wrap {
+      margin-top: 12px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 10px;
+      box-shadow: 0 8px 24px rgba(25, 35, 42, 0.06);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 6px 4px;
+      text-align: left;
+    }
+    th {
+      color: var(--muted);
+      font-weight: 700;
+      position: sticky;
+      top: 0;
+      background: #fffdfa;
+    }
+    tbody tr:last-child td { border-bottom: 0; }
+    .scroller {
+      max-height: 260px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+
+    @media (max-width: 950px) {
+      .controls { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+      .stats { grid-template-columns: repeat(2, minmax(130px, 1fr)); }
+      .market-board { min-height: 420px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="card hero">
+        <h1>Two-Outcome Market Simulator</h1>
+        <p>
+          This app simulates a 2-outcome prediction market, similar to Polymarket or Kalshi style.
+          There are only two possibilities: either <strong>A happens</strong>, or <strong>A does not happen</strong> (so <strong>B happens</strong>).
+          People each have their own belief about probability, and based on that belief they place offers.
+        </p>
+        <p>
+          Simple example: if I think A has a 55% chance, I might place a bid at <code>0.54</code> to get better odds.
+          If another person is willing to sell at <code>0.53</code>, the market matches that trade.
+          The exchange keeps the difference (<code>0.01</code>) as profit in this simulation.
+        </p>
+        <div class="hero-tags">
+          <span class="hero-tag">Live order arrivals</span>
+          <span class="hero-tag">Real-time matching</span>
+          <span class="hero-tag">Midpoint implied probabilities</span>
+          <span class="hero-tag">Exchange spread profit tracking</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="controls">
+          <label class="field">Number of offers to simulate
+            <input id="offersMean" type="number" value="100" step="1" min="1" />
+          </label>
+          <label class="field">Probability that outcome A happens according to general population
+            <input id="baseY" type="range" value="0.55" step="0.01" min="0" max="1" />
+            <span id="baseYValue" class="value">0.55</span>
+          </label>
+          <label class="field">How much people disagree in their prices; higher means more variation (bettor_std)
+            <input id="bettorStd" type="range" value="0.05" step="0.01" min="0" max="0.5" />
+            <span id="bettorStdValue" class="value">0.05</span>
+          </label>
+          <label class="field">Speed (higher value = faster arrivals)<br>&nbsp;
+            <input id="speed" type="range" min="0.1" max="2.0" step="0.1" value="0.6" />
+          </label>
+        </div>
+        <div class="actions">
+          <button id="startBtn" class="primary">Start Simulation</button>
+          <button id="stopBtn">Stop</button>
+          <button id="resetBtn">Reset</button>
+          <div id="speedReadout" class="speed-readout">0.6s per order</div>
+        </div>
+      </div>
+
+      <div class="card stats">
+        <div class="stat"><div class="k">Orders Arrived</div><div id="ordersArrived" class="v">0</div></div>
+        <div class="stat"><div class="k">Matches</div><div id="matchesCount" class="v">0</div></div>
+        <div class="stat"><div class="k">Implied P(A)</div><div id="pA" class="v">-</div></div>
+        <div class="stat"><div class="k">Implied P(B)</div><div id="pB" class="v">-</div></div>
+        <div class="stat"><div class="k">Exchange Profit</div><div id="profit" class="v" style="color:var(--good)">$0.0000</div></div>
+      </div>
+    </div>
+
+    <div class="market-board">
+      <h3>Market Field</h3>
+      <div class="market-subtitle">Single field. Movement zones are invisible and defined by outcome/side.</div>
+      <div class="market-legend">
+        <span class="chip"><span class="dot dot-a"></span>Outcome A: Left side</span>
+        <span class="chip"><span class="dot dot-b"></span>Outcome B: Right side</span>
+        <span class="chip"><span class="text-ask">Red text</span> = Ask</span>
+        <span class="chip"><span class="text-bid">Green text</span> = Bid</span>
+      </div>
+      <div id="marketField" class="orders"></div>
+    </div>
+
+    <div class="table-wrap">
+      <strong>Match Log</strong>
+      <div class="scroller">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Outcome</th>
+              <th>Bid ID</th>
+              <th>Ask ID</th>
+              <th>Bid Px</th>
+              <th>Ask Px</th>
+              <th>Spread</th>
+              <th>Trade Px</th>
+              <th>Cumulative Profit</th>
+            </tr>
+          </thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@8/dist/pixi.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script>
+    function clampPrice(v) {
+      const eps = 1e-6;
+      return Math.max(eps, Math.min(1 - eps, v));
+    }
+
+    function mulberry32(seed) {
+      let t = seed >>> 0;
+      return function () {
+        t += 0x6d2b79f5;
+        let r = Math.imul(t ^ (t >>> 15), 1 | t);
+        r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+        return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function gaussian(rand, mean, std) {
+      let u = 0, v = 0;
+      while (u === 0) u = rand();
+      while (v === 0) v = rand();
+      const z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+      return mean + z * std;
+    }
+
+    function logit(p) {
+      return Math.log(p / (1 - p));
+    }
+
+    function sigmoid(x) {
+      return 1 / (1 + Math.exp(-x));
+    }
+
+    // Bounded probability sampling (0,1) from a normal in logit space.
+    // This reshapes the distribution instead of clipping negative draws.
+    function sampleBoundedProbability(rand, mean, std) {
+      const eps = 1e-6;
+      const m = clampPrice(mean);
+      const safeStd = Math.max(1e-8, std);
+      const mu = logit(m);
+      const sigma = safeStd / Math.max(eps, m * (1 - m)); // delta-method approximation
+      const z = gaussian(rand, mu, sigma);
+      return Math.max(eps, Math.min(1 - eps, sigmoid(z)));
+    }
+
+    const COLORS = {
+      A: 0xd94841,
+      B: 0x1477b8,
+      bidRing: 0xffffff,
+      askRing: 0xfafafa,
+      linkA: 0x1477b8,
+      linkB: 0xd94841,
+      spread: 0x2f855a,
+    };
+
+    const el = {
+      offersMean: document.getElementById("offersMean"),
+      baseY: document.getElementById("baseY"),
+      baseYValue: document.getElementById("baseYValue"),
+      bettorStd: document.getElementById("bettorStd"),
+      bettorStdValue: document.getElementById("bettorStdValue"),
+      speed: document.getElementById("speed"),
+      speedReadout: document.getElementById("speedReadout"),
+      startBtn: document.getElementById("startBtn"),
+      stopBtn: document.getElementById("stopBtn"),
+      resetBtn: document.getElementById("resetBtn"),
+      marketField: document.getElementById("marketField"),
+      logBody: document.getElementById("logBody"),
+      ordersArrived: document.getElementById("ordersArrived"),
+      matchesCount: document.getElementById("matchesCount"),
+      pA: document.getElementById("pA"),
+      pB: document.getElementById("pB"),
+      profit: document.getElementById("profit"),
+    };
+
+    const state = {
+      timer: null,
+      running: false,
+      rand: null,
+      idx: 0,
+      targetOffers: 0,
+      minResidenceMs: 1500,
+      lastMatchAttemptMs: 0,
+      matchCount: 0,
+      cumulativeProfit: 0,
+      entityByOrderId: new Map(),
+      laneMap: new Map(),
+      marketApp: null,
+      overlayApp: null,
+      book: {
+        A: { bid: [], ask: [] },
+        B: { bid: [], ask: [] },
+      },
+    };
+
+    function laneKey(outcome, side) {
+      return `${outcome}_${side}`;
+    }
+
+    async function initPixi() {
+      const marketApp = new PIXI.Application();
+      await marketApp.init({
+        resizeTo: el.marketField,
+        backgroundAlpha: 0,
+        antialias: true,
+      });
+      el.marketField.innerHTML = "";
+      el.marketField.appendChild(marketApp.canvas);
+      state.marketApp = marketApp;
+      state.laneMap.set("A_ask", { key: "A_ask", app: marketApp, entities: [] });
+      state.laneMap.set("A_bid", { key: "A_bid", app: marketApp, entities: [] });
+      state.laneMap.set("B_ask", { key: "B_ask", app: marketApp, entities: [] });
+      state.laneMap.set("B_bid", { key: "B_bid", app: marketApp, entities: [] });
+
+      const overlay = new PIXI.Application();
+      await overlay.init({
+        resizeTo: window,
+        backgroundAlpha: 0,
+        antialias: true,
+      });
+      overlay.canvas.style.position = "fixed";
+      overlay.canvas.style.inset = "0";
+      overlay.canvas.style.pointerEvents = "none";
+      overlay.canvas.style.zIndex = "1500";
+      document.body.appendChild(overlay.canvas);
+      state.overlayApp = overlay;
+
+      window.addEventListener("resize", () => {
+        for (const lane of state.laneMap.values()) {
+          for (const entity of lane.entities) {
+            if (entity._isMatching) continue;
+            entity._wanderT = 0;
+          }
+        }
+      });
+      gsap.ticker.add(updateWanderMovement);
+    }
+
+    function zoneRect(key) {
+      const app = state.marketApp;
+      const w = app ? (app.renderer.width || 800) : 800;
+      const h = app ? (app.renderer.height || 360) : 360;
+      const pad = 26;
+      const midX = w / 2;
+      const midY = h / 2;
+      if (key === "A_ask") return { x0: pad, y0: pad, x1: midX - 10, y1: midY - 10 };
+      if (key === "A_bid") return { x0: pad, y0: midY + 10, x1: midX - 10, y1: h - pad };
+      if (key === "B_ask") return { x0: midX + 10, y0: pad, x1: w - pad, y1: midY - 10 };
+      return { x0: midX + 10, y0: midY + 10, x1: w - pad, y1: h - pad };
+    }
+
+    function currentIntervalMs() {
+      const speedVal = parseFloat(el.speed.value);
+      return Math.round((2.1 - speedVal) * 1000); // inverted: higher slider => faster (smaller interval)
+    }
+
+    function updateSpeedReadout() {
+      const speedVal = parseFloat(el.speed.value);
+      const intervalSec = 2.1 - speedVal;
+      el.speedReadout.textContent = `${intervalSec.toFixed(1)}s per order`;
+    }
+
+    function updateParamReadouts() {
+      el.baseYValue.textContent = parseFloat(el.baseY.value).toFixed(2);
+      el.bettorStdValue.textContent = parseFloat(el.bettorStd.value).toFixed(2);
+    }
+
+    function createOrderEntity(order) {
+      const root = new PIXI.Container();
+      root.label = `order-${order.order_id}`;
+      root.alpha = 0;
+      root.scale.set(0.7);
+
+      const bubble = new PIXI.Graphics();
+      bubble.circle(0, 0, 19);
+      bubble.fill(COLORS[order.outcome]);
+      if (order.side === "bid") {
+        bubble.circle(0, 0, 19);
+        bubble.stroke({ width: 3, color: COLORS.bidRing, alpha: 0.95 });
+      } else {
+        bubble.circle(0, 0, 19);
+        bubble.stroke({ width: 2, color: COLORS.askRing, alpha: 0.95 });
+      }
+      root.addChild(bubble);
+
+      const person = new PIXI.Text({
+        text: "🧍",
+        style: {
+          fontFamily: "Segoe UI Emoji, Apple Color Emoji, sans-serif",
+          fontSize: 18,
+          fill: 0xffffff,
+        },
+      });
+      person.anchor.set(0.5);
+      person.y = -1;
+      root.addChild(person);
+
+      const sideTag = new PIXI.Text({
+        text: String(order.order_id),
+        style: {
+          fontFamily: "Avenir Next, Segoe UI, sans-serif",
+          fontSize: 9,
+          fontWeight: "700",
+          fill: order.side === "ask" ? 0xd94841 : 0x2f855a,
+          align: "center",
+        },
+      });
+      sideTag.anchor.set(0.5);
+      sideTag.y = -30;
+      root.addChild(sideTag);
+
+      const px = new PIXI.Text({
+        text: `$${order.price.toFixed(3)}`,
+        style: {
+          fontFamily: "Avenir Next, Segoe UI, sans-serif",
+          fontSize: 9,
+          fontWeight: "600",
+          fill: order.side === "ask" ? 0xd94841 : 0x2f855a,
+        },
+      });
+      px.anchor.set(0.5, 0);
+      px.y = 24;
+      root.addChild(px);
+
+      return root;
+    }
+
+    function randomPointInLane(lane) {
+      const key = lane.key;
+      const z = zoneRect(key);
+      return {
+        x: z.x0 + Math.random() * Math.max(1, z.x1 - z.x0),
+        y: z.y0 + Math.random() * Math.max(1, z.y1 - z.y0),
+      };
+    }
+
+    function assignNewWanderTarget(entity, lane) {
+      const p = randomPointInLane(lane);
+      entity._targetX = p.x;
+      entity._targetY = p.y;
+      entity._wanderT = 0.7 + Math.random() * 1.8;
+    }
+
+    function updateWanderMovement() {
+      const speedVal = parseFloat(el.speed.value);
+      const motionFactor = speedVal / 2.0; // inverted: higher slider => faster movement
+      const maxStep = 0.35 + 1.25 * motionFactor;
+
+      for (const lane of state.laneMap.values()) {
+        const z = zoneRect(lane.key);
+        for (const entity of lane.entities) {
+          if (entity._isMatching) continue;
+          entity._wanderT = (entity._wanderT || 0) - 1 / 60;
+          if (!Number.isFinite(entity._targetX) || !Number.isFinite(entity._targetY) || entity._wanderT <= 0) {
+            assignNewWanderTarget(entity, lane);
+          }
+          const dx = entity._targetX - entity.x;
+          const dy = entity._targetY - entity.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist > 0.5) {
+            const step = Math.min(maxStep, dist * 0.08 + 0.06 * motionFactor);
+            entity.x += (dx / dist) * step;
+            entity.y += (dy / dist) * step;
+          }
+          entity.x = Math.max(z.x0, Math.min(z.x1, entity.x));
+          entity.y = Math.max(z.y0, Math.min(z.y1, entity.y));
+        }
+      }
+
+      const nowMs = performance.now();
+      if (state.running && nowMs - state.lastMatchAttemptMs > 80) {
+        state.lastMatchAttemptMs = nowMs;
+        tryMatchAll(nowMs);
+      }
+    }
+
+    function addOrderVisual(order) {
+      const key = laneKey(order.outcome, order.side);
+      const lane = state.laneMap.get(key);
+      if (!lane) return;
+      const entity = createOrderEntity(order);
+      lane.entities.push(entity);
+      lane.app.stage.addChild(entity);
+      const start = randomPointInLane(lane);
+      entity.x = start.x;
+      entity.y = start.y;
+      entity._isMatching = false;
+      assignNewWanderTarget(entity, lane);
+      state.entityByOrderId.set(order.order_id, { key, entity });
+      gsap.to(entity, { alpha: 1, duration: 0.28, ease: "power2.out" });
+      gsap.to(entity.scale, { x: 1, y: 1, duration: 0.28, ease: "back.out(1.6)" });
+    }
+
+    function removeOrderVisual(orderId, animated = true) {
+      const slot = state.entityByOrderId.get(orderId);
+      if (!slot) return;
+      const lane = state.laneMap.get(slot.key);
+      if (!lane) return;
+      const idx = lane.entities.indexOf(slot.entity);
+      if (idx >= 0) lane.entities.splice(idx, 1);
+      state.entityByOrderId.delete(orderId);
+
+      const removeNow = () => {
+        if (slot.entity.parent) slot.entity.parent.removeChild(slot.entity);
+      };
+
+      if (!animated) {
+        removeNow();
+        return;
+      }
+
+      gsap.to(slot.entity, {
+        alpha: 0,
+        duration: 0.28,
+        ease: "power2.in",
+        onComplete: removeNow,
+      });
+      gsap.to(slot.entity.scale, { x: 0.2, y: 0.2, duration: 0.28, ease: "power2.in" });
+    }
+
+    function sortBook(outcome, side) {
+      const arr = state.book[outcome][side];
+      if (side === "bid") {
+        arr.sort((a, b) => (b.price - a.price) || (a.timestamp - b.timestamp));
+      } else {
+        arr.sort((a, b) => (a.price - b.price) || (a.timestamp - b.timestamp));
+      }
+    }
+
+    function pickBestMatureOrder(orders, side, nowMs) {
+      let best = null;
+      let bestIdx = -1;
+      for (let i = 0; i < orders.length; i += 1) {
+        const o = orders[i];
+        if ((nowMs - (o.arrivedAtMs || nowMs)) < state.minResidenceMs) continue;
+        if (!best) {
+          best = o;
+          bestIdx = i;
+          continue;
+        }
+        if (side === "bid") {
+          if (o.price > best.price || (o.price === best.price && o.timestamp < best.timestamp)) {
+            best = o;
+            bestIdx = i;
+          }
+        } else {
+          if (o.price < best.price || (o.price === best.price && o.timestamp < best.timestamp)) {
+            best = o;
+            bestIdx = i;
+          }
+        }
+      }
+      return best ? { idx: bestIdx, order: best } : null;
+    }
+
+    function bestQuote(outcome) {
+      const bids = state.book[outcome].bid;
+      const asks = state.book[outcome].ask;
+      const bestBid = bids.length ? Math.max(...bids.map(o => o.price)) : NaN;
+      const bestAsk = asks.length ? Math.min(...asks.map(o => o.price)) : NaN;
+      return { bestBid, bestAsk };
+    }
+
+    function updateStats() {
+      el.ordersArrived.textContent = String(state.idx);
+      el.matchesCount.textContent = String(state.matchCount);
+      el.profit.textContent = `$${state.cumulativeProfit.toFixed(4)}`;
+
+      const qA = bestQuote("A");
+      const qB = bestQuote("B");
+      const midA = Number.isNaN(qA.bestBid) || Number.isNaN(qA.bestAsk) ? NaN : (qA.bestBid + qA.bestAsk) / 2;
+      const midB = Number.isNaN(qB.bestBid) || Number.isNaN(qB.bestAsk) ? NaN : (qB.bestBid + qB.bestAsk) / 2;
+
+      let pA = NaN;
+      let pB = NaN;
+      if (Number.isNaN(midA) && Number.isNaN(midB)) {
+        pA = NaN; pB = NaN;
+      } else if (Number.isNaN(midA)) {
+        pB = midB; pA = 1 - pB;
+      } else if (Number.isNaN(midB)) {
+        pA = midA; pB = 1 - pA;
+      } else {
+        const denom = midA + midB;
+        if (denom > 0) {
+          pA = midA / denom;
+          pB = midB / denom;
+        }
+      }
+      el.pA.textContent = Number.isNaN(pA) ? "-" : pA.toFixed(3);
+      el.pB.textContent = Number.isNaN(pB) ? "-" : pB.toFixed(3);
+    }
+
+    function appendMatchLog(trade) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${state.matchCount}</td>
+        <td>${trade.outcome}</td>
+        <td>${trade.bid_order_id}</td>
+        <td>${trade.ask_order_id}</td>
+        <td>${trade.bid_price.toFixed(4)}</td>
+        <td>${trade.ask_price.toFixed(4)}</td>
+        <td>${trade.captured_spread.toFixed(4)}</td>
+        <td>${trade.price.toFixed(4)}</td>
+        <td>${state.cumulativeProfit.toFixed(4)}</td>
+      `;
+      el.logBody.prepend(tr);
+    }
+
+    function executeTrade(outcome, bidOrder, askOrder) {
+      const tradePrice = bidOrder.timestamp > askOrder.timestamp ? askOrder.price : bidOrder.price;
+      const capturedSpread = Math.max(0, bidOrder.price - askOrder.price);
+      const trade = {
+        outcome,
+        qty: 1,
+        price: tradePrice,
+        bid_price: bidOrder.price,
+        ask_price: askOrder.price,
+        captured_spread: capturedSpread,
+        bid_order_id: bidOrder.order_id,
+        ask_order_id: askOrder.order_id,
+        timestamp: Math.max(bidOrder.timestamp, askOrder.timestamp),
+      };
+
+      state.matchCount += 1;
+      state.cumulativeProfit += capturedSpread;
+      makeMatchEffects(trade.bid_order_id, trade.ask_order_id, trade.captured_spread);
+      appendMatchLog(trade);
+      updateStats();
+    }
+
+    function tryMatchOutcome(outcome, nowMs) {
+      const bids = state.book[outcome].bid;
+      const asks = state.book[outcome].ask;
+      if (!bids.length || !asks.length) return;
+
+      while (true) {
+        const bestBid = pickBestMatureOrder(bids, "bid", nowMs);
+        const bestAsk = pickBestMatureOrder(asks, "ask", nowMs);
+        if (!bestBid || !bestAsk) break;
+        if (bestBid.order.price < bestAsk.order.price) break;
+
+        const bidOrder = bids.splice(bestBid.idx, 1)[0];
+        const askOrder = asks.splice(bestAsk.idx, 1)[0];
+        executeTrade(outcome, bidOrder, askOrder);
+      }
+    }
+
+    function tryMatchAll(nowMs) {
+      tryMatchOutcome("A", nowMs);
+      tryMatchOutcome("B", nowMs);
+    }
+
+    function makeMatchEffects(bidId, askId, capturedSpread) {
+      const bidSlot = state.entityByOrderId.get(bidId);
+      const askSlot = state.entityByOrderId.get(askId);
+      if (!bidSlot || !askSlot || !state.overlayApp) return;
+
+      const speedVal = parseFloat(el.speed.value); // higher means faster
+      const timingScale = 0.65 + (2.1 - speedVal) * 0.8; // tuned: slowest setting lingers a bit more
+      const approachDuration = 0.42 * timingScale;
+      const spreadPopIn = 0.18 * timingScale;
+      const spreadFadeOut = 0.56 * timingScale;
+      const spreadStartDelayMs = Math.round(430 * timingScale);
+
+      const bidLane = state.laneMap.get(bidSlot.key);
+      const askLane = state.laneMap.get(askSlot.key);
+      if (!bidLane || !askLane) return;
+
+      const bidCanvasRect = bidLane.app.canvas.getBoundingClientRect();
+      const askCanvasRect = askLane.app.canvas.getBoundingClientRect();
+      const bidPage = {
+        x: bidCanvasRect.left + bidSlot.entity.x,
+        y: bidCanvasRect.top + bidSlot.entity.y,
+      };
+      const askPage = {
+        x: askCanvasRect.left + askSlot.entity.x,
+        y: askCanvasRect.top + askSlot.entity.y,
+      };
+      const midX = (bidPage.x + askPage.x) / 2;
+      const midY = (bidPage.y + askPage.y) / 2;
+
+      function pageToLaneLocal(app, rect, pageX, pageY) {
+        const nx = rect.width > 0 ? (pageX - rect.left) / rect.width : 0.5;
+        const ny = rect.height > 0 ? (pageY - rect.top) / rect.height : 0.5;
+        return {
+          x: nx * app.renderer.width,
+          y: ny * app.renderer.height,
+        };
+      }
+
+      const approachXLeft = midX - 18;
+      const approachXRight = midX + 18;
+      const approachY = midY;
+      const bidTarget = pageToLaneLocal(
+        bidLane.app,
+        bidCanvasRect,
+        approachXLeft,
+        approachY
+      );
+      const askTarget = pageToLaneLocal(
+        askLane.app,
+        askCanvasRect,
+        approachXRight,
+        approachY
+      );
+      bidSlot.entity._isMatching = true;
+      askSlot.entity._isMatching = true;
+      gsap.to(bidSlot.entity, { x: bidTarget.x, y: bidTarget.y, duration: approachDuration, ease: "sine.inOut" });
+      gsap.to(askSlot.entity, { x: askTarget.x, y: askTarget.y, duration: approachDuration, ease: "sine.inOut" });
+      gsap.to(bidSlot.entity.scale, { x: 1.08, y: 1.08, duration: approachDuration, ease: "power1.out" });
+      gsap.to(askSlot.entity.scale, { x: 1.08, y: 1.08, duration: approachDuration, ease: "power1.out" });
+
+      setTimeout(() => {
+        const spreadText = new PIXI.Text({
+          text: `+${capturedSpread.toFixed(4)}`,
+          style: {
+            fontFamily: "Avenir Next, Segoe UI, sans-serif",
+            fontSize: 16,
+            fontWeight: "800",
+            fill: COLORS.spread,
+            stroke: { color: 0xffffff, width: 2 },
+          },
+        });
+        spreadText.anchor.set(0.5);
+        spreadText.position.set(midX, midY - 4);
+        state.overlayApp.stage.addChild(spreadText);
+
+        gsap.timeline({ onComplete: () => spreadText.destroy() })
+          .fromTo(spreadText, { alpha: 0, y: midY - 4 }, {
+            alpha: 1, y: midY - 14, duration: spreadPopIn, ease: "back.out(1.8)"
+          })
+          .to(spreadText, { alpha: 0, y: midY - 40, duration: spreadFadeOut, ease: "power2.out" });
+        gsap.fromTo(
+          spreadText.scale,
+          { x: 0.7, y: 0.7 },
+          { x: 1.06, y: 1.06, duration: spreadPopIn, ease: "back.out(1.8)" }
+        );
+
+        removeOrderVisual(bidId, true);
+        removeOrderVisual(askId, true);
+      }, spreadStartDelayMs);
+    }
+
+    function readCurrentParams() {
+      return {
+        y: clampPrice(parseFloat(el.baseY.value)),
+        bettorStd: Math.max(0, parseFloat(el.bettorStd.value)),
+        askSpreadMean: 0.0,
+        askSpreadStd: 0.0,
+      };
+    }
+
+    function generateNextOffer(orderId) {
+      const { y, bettorStd, askSpreadMean, askSpreadStd } = readCurrentParams();
+      const rand = state.rand;
+      const pA = sampleBoundedProbability(rand, y, bettorStd);
+      const pB = clampPrice(1 - pA);
+      const outcome = rand() < 0.5 ? "A" : "B";
+      const side = rand() < 0.5 ? "bid" : "ask";
+      const fair = outcome === "A" ? pA : pB;
+      const spread = Math.max(0, gaussian(rand, askSpreadMean, askSpreadStd));
+      const price = side === "bid" ? fair : clampPrice(fair + spread);
+      return {
+        order_id: orderId,
+        timestamp: orderId,
+        outcome,
+        side,
+        price,
+        size: 1,
+      };
+    }
+
+    function applyOrder(order) {
+      addOrderVisual(order);
+      state.book[order.outcome][order.side].push({
+        ...order,
+        arrivedAtMs: performance.now(),
+      });
+      sortBook(order.outcome, order.side);
+      updateStats();
+    }
+
+    function resetState() {
+      state.running = false;
+      if (state.timer) clearTimeout(state.timer);
+      state.timer = null;
+      state.rand = null;
+      state.idx = 0;
+      state.targetOffers = 0;
+      state.lastMatchAttemptMs = 0;
+      state.matchCount = 0;
+      state.cumulativeProfit = 0;
+      state.entityByOrderId.clear();
+      state.book = { A: { bid: [], ask: [] }, B: { bid: [], ask: [] } };
+      for (const lane of state.laneMap.values()) {
+        lane.entities = [];
+      }
+      if (state.marketApp) {
+        state.marketApp.stage.removeChildren();
+      }
+      if (state.overlayApp) state.overlayApp.stage.removeChildren();
+      el.logBody.innerHTML = "";
+      updateStats();
+    }
+
+    function tick() {
+      if (!state.running) return;
+      if (state.idx >= state.targetOffers) {
+        state.running = false;
+        return;
+      }
+      const order = generateNextOffer(state.idx + 1);
+      state.idx += 1;
+      applyOrder(order);
+      state.timer = setTimeout(tick, currentIntervalMs());
+    }
+
+    function start() {
+      resetState();
+      const seed = 7;
+      state.rand = mulberry32(seed);
+      state.targetOffers = Math.max(1, Math.round(parseFloat(el.offersMean.value)));
+      state.running = true;
+      tick();
+    }
+
+    function stop() {
+      state.running = false;
+      if (state.timer) clearTimeout(state.timer);
+      state.timer = null;
+    }
+
+    async function bootstrap() {
+      await initPixi();
+      el.speed.addEventListener("input", updateSpeedReadout);
+      el.baseY.addEventListener("input", updateParamReadouts);
+      el.bettorStd.addEventListener("input", updateParamReadouts);
+      el.startBtn.addEventListener("click", start);
+      el.stopBtn.addEventListener("click", stop);
+      el.resetBtn.addEventListener("click", resetState);
+      updateSpeedReadout();
+      updateParamReadouts();
+      resetState();
+    }
+
+    bootstrap();
+  </script>
+</body>
+</html>
